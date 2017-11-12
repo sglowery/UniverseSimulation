@@ -1,7 +1,9 @@
 # UniverseSimulation
 For AST303 (Cosmology &amp; Galaxy Formation)
+
 Written (so far) by Stephen Lowery
 (in a group with Daniel Herrera, Justin Morse and Rydell Stottlemyer)
+
 University of Northern Colorado
 
 We were tasked with creating a universe simulator that operated on the
