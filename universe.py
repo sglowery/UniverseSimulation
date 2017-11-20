@@ -19,18 +19,18 @@ class Universe:
         dm, dl, dr = self.density_at_scale(scale)
         return dr + .5 * dm - dl
 
-    def cosmic_time(self, scale, steps, startpoint=1e-10):
+    def cosmic_time(self, scale, steps, start_point=1e-32):
         # H_0*t = integral from 0 to a: da * [Ω_r0/a^2 + Ω_m0/a + Ω_l0/a^2 + (1-Ω0)]^(-1/2)
         time = 0
         old = 0
-        for da in np.logspace(np.log10(startpoint), np.log10(scale), num=steps, endpoint=True):
-            diff = da - old
-            time += diff / np.sqrt(self.rad_density / da**2 + self.matter_density / da +
-                                            self.lambda_density / da**2 +
-                                            (1 - self.lambda_density+self.matter_density+self.rad_density))
-            old = da
-        #time /= (self.hubble/conversions.metersInMpc)
-        #time /= (3600 * 24 * 365 * 1e9)
+        for scale_factor in np.logspace(np.log10(start_point), np.log10(scale), num=steps):
+            diff = scale_factor - old
+            time += diff / np.sqrt(self.rad_density / scale_factor**2 + self.matter_density / scale_factor +
+                                            self.lambda_density * scale_factor**2 +
+                                            (1 - (self.lambda_density+self.matter_density+self.rad_density)))
+            old = scale_factor
+        time *= (conversions.kilometers_in_mpc / self.hubble)
+        time /= (3600 * 24 * 365 * 1e9)
 
         return time
 
