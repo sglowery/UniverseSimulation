@@ -13,17 +13,24 @@ class Universe:
         self.curvature = curvature
 
     def num_components(self):
-        return int(self.matter_density > 0) + int(self.rad_density > 0) + int(self.lambda_density > 0)
+        return int(self.matter_density != 0) + int(self.rad_density != 0) + int(self.lambda_density != 0)
 
     def deceleration_constant(self, scale):
         dm, dl, dr = self.density_at_scale(scale)
         return dr + .5 * dm - dl
 
-    def cosmic_time(self, scale, steps, start_point=1e-32):
-        # H_0*t = integral from 0 to a: da * [Ω_r0/a^2 + Ω_m0/a + Ω_l0/a^2 + (1-Ω0)]^(-1/2)
+    def cosmic_time(self, target_scale, steps=1e5, start_point=1e-12, scales=-1):
+        # This method takes an input scale factor to correspond to a time after the Big Bang, in gigayears
+        #
+        # ---------- EQUATION 1: H_0*t = integral from 0 to a: da * [Ω_r0/a^2 + Ω_m0/a + Ω_l0/a^2 + (1-Ω0)]^(-1/2) -----
+        # This equation was derived from the general Friedmann equation (Ryden, p. 85)
         time = 0
         old = 0
-        for scale_factor in np.logspace(np.log10(start_point), np.log10(scale), num=steps):
+
+        # allows for some default coordinates to be defined if the user wants to override them
+        if scales == -1:
+            scales = np.logspace(np.log10(start_point), np.log10(target_scale), num=steps)
+        for scale_factor in scales:
             diff = scale_factor - old
             time += diff / np.sqrt(self.rad_density / scale_factor**2 + self.matter_density / scale_factor +
                                             self.lambda_density * scale_factor**2 +
@@ -34,10 +41,29 @@ class Universe:
 
         return time
 
+    def scale_at_time(self, time):
+        scale_rm = self.rad_density/self.matter_density
+        scale_ml = np.float_power(self.matter_density/self.lambda_density, 1.0/3.0)
+        time_rm = (4.0/3.0)*(1-1/np.sqrt(2)) * np.power(scale_rm, 2)/np.sqrt(self.rad_density) \
+                  * conversions.kilometers_in_mpc / self.hubble
+        time_ml = 2 / self.hubble * conversions.kilometers_in_mpc / (3*np.sqrt(1-self.matter_density)) * np.log(1 + np.sqrt(2))
+       # print("time rm:", time_rm/(3600*24*365*1e6), "\ntime ml:",time_ml/(3600*24*365*1e9))
+        if time > 0 and time < .75*time_rm:
+            return np.sqrt((2*np.sqrt(self.rad_density)*time*self.hubble/conversions.kilometers_in_mpc))
+        elif time >= .75*time_rm and time < time_rm + .25*time_ml:
+            return np.float_power(time/(2/(3*self.hubble/conversions.kilometers_in_mpc)), 2.0/3.0)
+        elif time >= time_rm + .25*time_ml and time < 1.25*time_ml:
+            return np.float_power(3.0 / 2.0 * np.sqrt(self.matter_density) * self.hubble/conversions.kilometers_in_mpc
+                                  * time, 1.0/2.0)
+        elif time >= 1.25*time_ml:
+            return scale_ml*np.exp(np.sqrt(1-self.matter_density)*time*self.hubble/conversions.kilometers_in_mpc/2.975)
+        else:
+            print("Time must be greater than 0!")
+
     def density_at_scale(self, scale):
         comps = self.num_components()
-        if(comps == 3):
-            if(scale == 1):
+        if comps == 3:
+            if scale == 1:
                 return self.matter_density, self.lambda_density, self.rad_density
             else:
                 # For a universe with matter, radiation and lambda components, the following equations are used to
@@ -67,8 +93,8 @@ class Universe:
                 # => Ω_l = 1/[1 + (Ω_m0/a^3)/Ω_l0 + (Ω_r0/a^4)/Ω_l0]
 
                 # first: ratio of matter to lambda
-                density_m = self.matter_density / self.lambda_density / scale**3 # * density_l
-                density_r = self.rad_density / self.lambda_density / scale**4 # * density_l
+                density_m = self.matter_density / self.lambda_density / scale**3  # * density_l
+                density_r = self.rad_density / self.lambda_density / scale**4  # * density_l
                 # (note: the "* density_l" part at the end of the previous two lines is just meant to illustrate that
                 # I only need to multiply these values by that number to obtain the correct value, which will be done
                 # after density_l is determined
@@ -83,21 +109,19 @@ class Universe:
 
                 return density_m, density_l, density_r
 
-        elif(comps == 2):
-            # TODO: verify these calculations
-            if(self.matter_density == 0):
-                density_r = (self.rad_density / self.lambda_density) / self.scale**4
+        elif comps == 2:
+            if self.matter_density == 0:
+                density_r = (self.rad_density / self.lambda_density) / scale**4
                 density_l = 1/(1+density_r)
                 density_r *= density_l
                 return density_l, density_r
-            elif(self.lambda_density == 0):
-                density_r = (self.rad_density / self.matter_density) / self.scale
+            elif self.lambda_density == 0:
+                density_r = (self.rad_density / self.matter_density) / scale
                 density_m = 1/(1+density_r)
                 density_r *= density_m
                 return density_m, density_r
-            elif(self.rad_density == 0):
-                density_m = (self.matter_density / self.lambda_density) / self.scale**3
+            elif self.rad_density == 0:
+                density_m = (self.matter_density / self.lambda_density) / scale**3
                 density_l = 1/(1+density_m)
                 density_m *= density_l
                 return density_m, density_l
-
